@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import DeleteCategoryForm from "@/components/DeleteCategoryForm"; // <-- 1. Impor komponen baru
 
 export default async function CategoryPage() {
   const categories = await prisma.category.findMany();
@@ -23,11 +24,12 @@ export default async function CategoryPage() {
   }
 
   return (
-    <main className="max-w-xl mx-auto py-10 space-y-8">
+    // Anda bisa menghapus className di sini jika sudah menggunakan layout global
+    <main>
       <h1 className="text-3xl font-bold">Manajemen Kategori</h1>
 
-      {/* Form Tambah */}
-      <form action={addCategory} className="flex gap-2">
+      {/* Form Tambah (tidak berubah) */}
+      <form action={addCategory} className="flex gap-2 my-8">
         <input
           type="text"
           name="name"
@@ -52,22 +54,8 @@ export default async function CategoryPage() {
           >
             <span>{cat.name}</span>
 
-            <form
-              action={`/admin/category/delete`}
-              method="POST"
-              onSubmit={(e) => {
-                if (!confirm("Yakin ingin hapus kategori ini?"))
-                  e.preventDefault();
-              }}
-            >
-              <input type="hidden" name="id" value={cat.id} />
-              <button
-                className="text-red-600 hover:underline text-sm"
-                type="submit"
-              >
-                Hapus
-              </button>
-            </form>
+            {/* 2. Ganti <form> lama dengan komponen baru */}
+            <DeleteCategoryForm categoryId={cat.id} />
           </li>
         ))}
       </ul>

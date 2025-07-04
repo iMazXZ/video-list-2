@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import AuthButton from "@/components/AuthButton";
 
 interface Video {
   id: string;
@@ -37,7 +38,7 @@ export default async function Home({ searchParams }: Props) {
     {
       headers: {
         "Content-Type": "application/json",
-        "Api-Token": "5915b7a9ebc9efd53900694e",
+        "Api-Token": process.env.UPNSHARE_API_TOKEN!,
       },
       cache: "no-store",
     }
@@ -50,7 +51,7 @@ export default async function Home({ searchParams }: Props) {
   const statsRes = await fetch("https://upnshare.com/api/v1/video", {
     headers: {
       "Content-Type": "application/json",
-      "Api-Token": "5915b7a9ebc9efd53900694e",
+      "Api-Token": process.env.UPNSHARE_API_TOKEN!,
     },
     cache: "no-store",
   });

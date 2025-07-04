@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache"; // <-- 1. Impor revalidatePath
 
 export async function POST(req: Request) {
   const formData = await req.formData();
@@ -28,5 +29,9 @@ export async function POST(req: Request) {
     },
   });
 
-  redirect("/admin");
+  // 2. Beritahu Next.js untuk merevalidasi cache halaman admin
+  revalidatePath("/admin"); 
+
+  // 3. Lakukan redirect setelah revalidasi
+  redirect("/admin"); 
 }

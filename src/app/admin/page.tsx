@@ -13,7 +13,7 @@ export default async function AdminPage() {
   const res = await fetch("https://upnshare.com/api/v1/video/manage", {
     headers: {
       "Content-Type": "application/json",
-      "Api-Token": "5915b7a9ebc9efd53900694e",
+      "Api-Token": process.env.UPNSHARE_API_TOKEN!,
     },
     cache: "no-store",
   });
