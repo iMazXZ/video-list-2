@@ -1,0 +1,25 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Category {
+  id    Int    @id @default(autoincrement())
+  name  String
+  videos VideoCategory[]
+}
+
+model VideoCategory {
+  id         Int    @id @default(autoincrement())
+  videoId    String
+  categoryId Int
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  @@unique([videoId, categoryId])
+}

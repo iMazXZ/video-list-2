@@ -1,113 +1,278 @@
-import Image from 'next/image'
+import { prisma } from "@/lib/prisma";
+import Link from "next/link";
 
-export default function Home() {
+interface Video {
+  id: string;
+  name: string;
+  poster: string;
+  preview: string;
+  assetUrl: string;
+  createdAt: string;
+}
+
+interface Props {
+  searchParams: { category?: string; page?: string; sort?: string; q?: string };
+}
+
+export default async function Home({ searchParams }: Props) {
+  const currentPage = parseInt(searchParams.page || "1");
+  const selectedCategory = searchParams.category;
+  const sort = searchParams.sort || "newest";
+  const query = (searchParams.q || "").toLowerCase();
+
+  // Ambil semua kategori
+  const categories = await prisma.category.findMany();
+
+  // Jika ada kategori dipilih, ambil id video yang cocok
+  const relatedVideos = selectedCategory
+    ? await prisma.videoCategory.findMany({
+        where: { category: { name: selectedCategory } },
+        select: { videoId: true },
+      })
+    : [];
+
+  // Ambil 1 halaman video dari API
+  const res = await fetch(
+    `https://upnshare.com/api/v1/video/manage?page=${currentPage}`,
+    {
+      headers: {
+        "Content-Type": "application/json",
+        "Api-Token": "5915b7a9ebc9efd53900694e",
+      },
+      cache: "no-store",
+    }
+  );
+
+  const data = await res.json();
+  let videos: Video[] = data.data;
+
+  // Ambil total video (tanpa pagination) dari endpoint statistik
+  const statsRes = await fetch("https://upnshare.com/api/v1/video", {
+    headers: {
+      "Content-Type": "application/json",
+      "Api-Token": "5915b7a9ebc9efd53900694e",
+    },
+    cache: "no-store",
+  });
+
+  const stats = await statsRes.json();
+  const totalVideos = stats.video;
+  const totalPages = Math.ceil(totalVideos / 20);
+
+  // Jika ada kategori dipilih, filter id-nya
+  if (selectedCategory) {
+    const allowedIds = relatedVideos.map((v) => v.videoId);
+    videos = videos.filter((v) => allowedIds.includes(v.id));
+  }
+
+  // Filter search query
+  if (query) {
+    videos = videos.filter((v) => v.name.toLowerCase().includes(query));
+  }
+
+  // Urutkan video
+  if (sort === "az") {
+    videos.sort((a, b) => a.name.localeCompare(b.name));
+  } else if (sort === "za") {
+    videos.sort((a, b) => b.name.localeCompare(a.name));
+  } else if (sort === "oldest") {
+    videos.sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+  } else {
+    videos.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">src/app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{' '}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
-        </div>
-      </div>
+    <main className="p-10 bg-gray-100 min-h-screen">
+      <h1 className="text-3xl font-bold mb-6 text-blue-600">
+        Daftar Video {selectedCategory ? `- ${selectedCategory}` : ""}
+      </h1>
 
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 before:lg:h-[360px] z-[-1]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
+      {/* Search & Sort */}
+      <form method="GET" className="mb-6 flex flex-wrap gap-4 items-center">
+        <input
+          type="text"
+          name="q"
+          placeholder="Cari video..."
+          defaultValue={query}
+          className="px-4 py-2 border rounded text-gray-900"
         />
+
+        <select
+          name="sort"
+          defaultValue={sort}
+          className="px-4 py-2 border rounded text-gray-900"
+        >
+          <option value="newest">Terbaru</option>
+          <option value="oldest">Terlama</option>
+          <option value="az">A-Z</option>
+          <option value="za">Z-A</option>
+        </select>
+
+        <button
+          type="submit"
+          className="px-4 py-2 bg-blue-600 text-white rounded"
+        >
+          Terapkan
+        </button>
+      </form>
+
+      {/* Filter Kategori */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        <Link
+          href="/"
+          className={`px-3 py-1 rounded text-gray-900 ${
+            !selectedCategory ? "bg-blue-600 text-white" : "bg-gray-200"
+          }`}
+        >
+          Semua
+        </Link>
+        {categories.map((cat) => (
+          <Link
+            key={cat.id}
+            href={`/?category=${cat.name}`}
+            className={`px-3 py-1 rounded text-gray-900 ${
+              selectedCategory === cat.name
+                ? "bg-blue-600 text-white"
+                : "bg-gray-200"
+            }`}
+          >
+            {cat.name}
+          </Link>
+        ))}
       </div>
 
-      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
+      {/* Daftar Video */}
+      {videos.length === 0 ? (
+        <p className="text-gray-500">Tidak ada video untuk kategori ini.</p>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {videos.map((video) => {
+            const posterUrl = `${video.assetUrl}${video.poster}`;
+            const previewUrl = `${video.assetUrl}${video.preview}`;
 
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
+            return (
+              <div
+                key={video.id}
+                className="relative group bg-white rounded shadow overflow-hidden"
+              >
+                <div className="aspect-video w-full bg-black">
+                  <img
+                    src={posterUrl}
+                    alt={video.name}
+                    className="w-full h-full object-cover group-hover:hidden"
+                  />
+                  <video
+                    src={previewUrl}
+                    muted
+                    loop
+                    playsInline
+                    className="w-full h-full object-cover hidden group-hover:block"
+                    autoPlay
+                  />
+                </div>
+                <div className="p-4">
+                  <h2 className="font-semibold text-md text-gray-900 truncate">
+                    {video.name}
+                  </h2>
+                  <a
+                    href={`https://nuna.upns.pro/#${video.id}`}
+                    target="_blank"
+                    className="text-sm text-blue-500 underline"
+                  >
+                    Tonton Sekarang
+                  </a>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Explore the Next.js 13 playground.
-          </p>
-        </a>
+      {/* Pagination */}
+      {videos.length > 0 && totalPages > 1 && (
+        <div className="flex justify-center mt-10 gap-2 flex-wrap">
+          {/* Prev */}
+          {currentPage > 1 && (
+            <Link
+              href={`/?page=${currentPage - 1}${
+                selectedCategory ? `&category=${selectedCategory}` : ""
+              }${sort ? `&sort=${sort}` : ""}${query ? `&q=${query}` : ""}`}
+              className="px-4 py-2 rounded bg-gray-200 text-gray-900 hover:bg-gray-300"
+            >
+              ← Prev
+            </Link>
+          )}
 
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
+          {/* Pages */}
+          {(() => {
+            const pages: (number | "...")[] = [];
+
+            if (totalPages <= 10) {
+              for (let i = 1; i <= totalPages; i++) {
+                pages.push(i);
+              }
+            } else {
+              if (currentPage <= 5) {
+                for (let i = 1; i <= 7; i++) pages.push(i);
+                pages.push("...");
+                pages.push(totalPages);
+              } else if (currentPage >= totalPages - 4) {
+                pages.push(1);
+                pages.push("...");
+                for (let i = totalPages - 6; i <= totalPages; i++)
+                  pages.push(i);
+              } else {
+                pages.push(1);
+                pages.push("...");
+                for (let i = currentPage - 2; i <= currentPage + 2; i++)
+                  pages.push(i);
+                pages.push("...");
+                pages.push(totalPages);
+              }
+            }
+
+            return pages.map((page, idx) =>
+              page === "..." ? (
+                <span key={idx} className="px-4 py-2 text-gray-500">
+                  ...
+                </span>
+              ) : (
+                <Link
+                  key={page}
+                  href={`/?page=${page}${
+                    selectedCategory ? `&category=${selectedCategory}` : ""
+                  }${sort ? `&sort=${sort}` : ""}${query ? `&q=${query}` : ""}`}
+                  className={`px-4 py-2 rounded ${
+                    page === currentPage
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-200 text-gray-900 hover:bg-gray-300"
+                  }`}
+                >
+                  {page}
+                </Link>
+              )
+            );
+          })()}
+
+          {/* Next */}
+          {currentPage < totalPages && (
+            <Link
+              href={`/?page=${currentPage + 1}${
+                selectedCategory ? `&category=${selectedCategory}` : ""
+              }${sort ? `&sort=${sort}` : ""}${query ? `&q=${query}` : ""}`}
+              className="px-4 py-2 rounded bg-gray-200 text-gray-900 hover:bg-gray-300"
+            >
+              Next →
+            </Link>
+          )}
+        </div>
+      )}
     </main>
-  )
+  );
 }
