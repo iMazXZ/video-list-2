@@ -1,8 +1,10 @@
-// src/app/admin/page.tsx
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import Link from "next/link";
 import prisma from "@/lib/prisma";
 import AdminPagination from "@/components/AdminPagination";
-import SyncButton from "@/components/SyncButton";
+import SyncManager from "@/components/SyncManager";
+import AuthButton from "@/components/AuthButton";
 
 interface Video {
   id: string;
@@ -27,9 +29,10 @@ interface Props {
 }
 
 export default async function AdminPage({ searchParams }: Props) {
+  const session = await getServerSession(authOptions);
   // Pagination setup
   const currentPage = parseInt(searchParams.page || "1");
-  const perPage = 8;
+  const perPage = 20;
   const searchQuery = searchParams.q || "";
   const selectedCategory = searchParams.category || "";
   const skip = (currentPage - 1) * perPage;
@@ -104,7 +107,10 @@ export default async function AdminPage({ searchParams }: Props) {
             <h1 className="text-2xl sm:text-3xl font-bold text-white">
               Video Category Management
             </h1>
-            <SyncButton />
+            <div className="flex items-center gap-4">
+              <SyncManager />
+              <AuthButton />
+            </div>
           </div>
 
           {/* Search and Category Filter */}

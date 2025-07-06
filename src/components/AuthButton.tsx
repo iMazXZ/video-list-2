@@ -8,7 +8,7 @@ export default function AuthButton() {
 
   return session ? (
     <div className="flex gap-4 items-center">
-      <p className="text-gray-900">Hi, {session.user?.name}</p>
+      <p className="text-white">Hi, {session.user?.name}</p>
       <button
         onClick={() => signOut()}
         className="bg-red-500 text-white px-3 py-1 rounded"

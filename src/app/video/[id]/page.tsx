@@ -12,32 +12,33 @@ import {
   FiStar,
   FiCode,
 } from "react-icons/fi";
+import prisma from "@/lib/prisma";
 
 interface Video {
   id: string;
+  videoId: string;
   name: string;
   poster: string;
   preview: string;
   assetUrl: string;
   duration: number;
-  size: number;
-  width: number;
-  height: number;
   resolution: string;
   play: number;
   download: number;
-  codec: string;
-  createdAt: string;
-}
-
-interface VideoFile {
-  id: string;
-  type: string;
-  name: string;
-  extension: string;
-  language: string | null;
-  url: string | null;
-  createdAt: string;
+  codec: string | null;
+  createdAt: Date;
+  categories: {
+    category: {
+      id: number;
+      name: string;
+    };
+  }[];
+  subtitles: {
+    id: string;
+    name: string;
+    url: string;
+    language: string | null;
+  }[];
 }
 
 export default async function VideoDetailPage({
@@ -45,50 +46,32 @@ export default async function VideoDetailPage({
 }: {
   params: { id: string };
 }) {
-  const id = params.id;
+  const videoId = params.id;
 
-  const res = await fetch(`https://upnshare.com/api/v1/video/manage/${id}`, {
-    headers: {
-      "Content-Type": "application/json",
-      "Api-Token": process.env.UPNSHARE_API_TOKEN!,
+  // Fetch video from database with subtitles
+  const video = await prisma.video.findUnique({
+    where: { videoId },
+    include: {
+      categories: {
+        include: {
+          category: true,
+        },
+      },
+      subtitles: true,
     },
-    cache: "no-store",
   });
 
-  const video: Video = await res.json();
-  if (!res.ok || !video?.id) {
-    console.error("Video not found or API error", video);
+  if (!video) {
     notFound();
   }
 
-  // Fetch subtitle files
-  let subtitleFiles: VideoFile[] = [];
-
-  try {
-    const filesRes = await fetch(
-      `https://upnshare.com/api/v1/video/manage/${id}/files`,
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "Api-Token": process.env.UPNSHARE_API_TOKEN!,
-        },
-        cache: "no-store",
-      }
-    );
-    const filesData = await filesRes.json();
-    subtitleFiles = Array.isArray(filesData)
-      ? filesData.filter((f: VideoFile) => f.type === "Subtitle" && f.url)
-      : [];
-  } catch (err) {
-    console.warn("Subtitle fetch failed", err);
-  }
-
-  const watchUrl = `https://nuna.upns.pro/#${video.id}`;
+  // Use external player URLs
+  const watchUrl = `https://nuna.upns.pro/#${video.videoId}`;
   const downloadUrl = `${watchUrl}&dl=1`;
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black">
-      {/* Enhanced Back Button */}
+      {/* Back Button */}
       <div className="bg-gray-800/50 backdrop-blur-md border-b border-gray-700 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <Link
@@ -105,7 +88,7 @@ export default async function VideoDetailPage({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content - Wider Column */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Enhanced Video Player */}
+            {/* Video Player */}
             <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-3xl overflow-hidden shadow-2xl border border-gray-700/50">
               <div className="aspect-video relative">
                 <iframe
@@ -163,7 +146,7 @@ export default async function VideoDetailPage({
               </div>
 
               {/* Subtitles Section */}
-              {subtitleFiles.length > 0 && (
+              {video.subtitles.length > 0 && (
                 <div className="mb-8">
                   <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                     <svg
@@ -176,15 +159,15 @@ export default async function VideoDetailPage({
                     Download Subtitles
                   </h3>
                   <div className="flex flex-wrap gap-2">
-                    {subtitleFiles.map((sub) => (
+                    {video.subtitles.map((sub) => (
                       <a
                         key={sub.id}
-                        href={`https://upnshare.com${sub.url}`}
+                        href={sub.url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white px-3 py-2 rounded-lg transition-all duration-200 text-sm font-medium"
                       >
-                        {sub.name || sub.language || sub.extension}
+                        {sub.name || sub.language || "Subtitle"}
                       </a>
                     ))}
                   </div>
@@ -228,12 +211,19 @@ export default async function VideoDetailPage({
                 <DetailItem
                   icon={<FiCalendar />}
                   label="Uploaded"
-                  value={new Date(video.createdAt).toLocaleDateString("en-US", {
+                  value={video.createdAt.toLocaleDateString("en-US", {
                     year: "numeric",
                     month: "short",
                     day: "numeric",
                   })}
                 />
+                {video.codec && (
+                  <DetailItem
+                    icon={<FiCode />}
+                    label="Codec"
+                    value={video.codec}
+                  />
+                )}
               </div>
 
               {/* Quality Badge */}
@@ -245,7 +235,8 @@ export default async function VideoDetailPage({
                   </span>
                 </div>
                 <p className="text-gray-300 text-sm mt-1.5">
-                  {video.resolution} resolution • {video.codec} codec
+                  {video.resolution} resolution • {video.codec || "Unknown"}{" "}
+                  codec
                 </p>
               </div>
 
@@ -281,7 +272,6 @@ function StatBadge({
   );
 }
 
-// Reusable Detail Item Component
 function DetailItem({
   icon,
   label,

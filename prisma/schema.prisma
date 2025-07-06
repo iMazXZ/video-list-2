@@ -18,7 +18,19 @@ model Video {
   duration   Int
   resolution String
   play       Int
+  download   Int       @default(0)
+  codec      String?
   categories VideoCategory[]
+  subtitles  Subtitle[]
+}
+
+model Subtitle {
+  id       String   @id @default(uuid())
+  name     String
+  url      String
+  language String?
+  video    Video    @relation(fields: [videoId], references: [id])
+  videoId  String
 }
 
 model Category {
@@ -43,6 +55,7 @@ model User {
   email         String?   @unique
   emailVerified DateTime?
   image         String?
+  role          String?   @default("USER")
   accounts      Account[]
   sessions      Session[]
 }

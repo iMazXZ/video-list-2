@@ -1,5 +1,4 @@
-// app/api/sync-videos/route.ts
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 
 interface VideoData {
@@ -11,69 +10,132 @@ interface VideoData {
   duration?: number;
   resolution?: string;
   play?: number;
-  preview?: string; // Add this if your Prisma model requires it
+  preview?: string;
 }
 
-export async function POST() {
+interface VideoFile {
+  id: string;
+  type: string;
+  name: string;
+  extension: string;
+  language: string | null;
+  url: string | null;
+  createdAt: string;
+}
+
+export async function POST(req: NextRequest) {
   try {
-    const lastVideo = await prisma.video.findFirst({
-      orderBy: { createdAt: 'desc' }
-    });
+    const { searchParams } = new URL(req.url);
+    const syncType = searchParams.get('syncType') || 'latest';
 
-    const apiUrl = new URL('https://upnshare.com/api/v1/video/manage');
-    apiUrl.searchParams.append('perPage', '100');
-    if (lastVideo) {
-      apiUrl.searchParams.append('createdAfter', lastVideo.createdAt.toISOString());
-    }
+    if (syncType === 'full') {
+      // =================================================================
+      // FULL SYNC LOGIC: Fetches all, processes them, and deletes old ones.
+      // =================================================================
+      console.log('Starting FULL video sync...');
+      
+      // 1. Fetch ALL videos from the API with pagination
+      let allApiVideos: VideoData[] = [];
+      let page = 1;
+      const perPage = 100;
 
-    const response = await fetch(apiUrl.toString(), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Api-Token': process.env.UPNSHARE_API_TOKEN!,
-      },
-    });
+      while (true) {
+        const apiUrl = new URL('https://upnshare.com/api/v1/video/manage');
+        apiUrl.searchParams.append('perPage', perPage.toString());
+        apiUrl.searchParams.append('page', page.toString());
+        const response = await fetch(apiUrl.toString(), { headers: { 'Content-Type': 'application/json', 'Api-Token': process.env.UPNSHARE_API_TOKEN! } });
+        if (!response.ok) { 
+            console.error(`API request failed with status ${response.status} for page ${page}.`); 
+            break; 
+        }
+        const { data: pageVideos = [] } = await response.json();
+        if (pageVideos.length === 0) break;
+        allApiVideos = [...allApiVideos, ...pageVideos];
+        if (pageVideos.length < perPage) break;
+        page++;
+      }
+      console.log(`Finished fetching. Total videos from API: ${allApiVideos.length}`);
 
-    const { data: newVideos = [] } = await response.json();
+      // 2. Get all video IDs from DB for deletion comparison
+      const dbVideos = await prisma.video.findMany({ select: { id: true, videoId: true } });
 
-    // Process new videos
-    const results = await Promise.all(
-      newVideos.map((video: VideoData) =>
-        prisma.video.upsert({
-          where: { videoId: video.id },
-          update: {
-            name: video.name,
-            poster: video.poster,
-            assetUrl: video.assetUrl,
-            duration: video.duration || 0,
-            resolution: video.resolution || 'HD',
-            play: video.play || 0,
-            preview: video.preview || '', // Add default value if required
-          },
-          create: {
-            videoId: video.id,
-            name: video.name,
-            poster: video.poster,
-            assetUrl: video.assetUrl,
-            createdAt: new Date(video.createdAt),
-            duration: video.duration || 0,
-            resolution: video.resolution || 'HD',
-            play: video.play || 0,
-            preview: video.preview || '', // Add default value if required
-          },
+      // 3. Process all API videos (create/update) in batches
+      const BATCH_SIZE = 10;
+      const DELAY_BETWEEN_BATCHES_MS = 1000;
+      for (let i = 0; i < allApiVideos.length; i += BATCH_SIZE) {
+          const batch = allApiVideos.slice(i, i + BATCH_SIZE);
+          await Promise.all(batch.map(async (video) => {
+              // Note: Subtitle fetching is skipped in full sync to avoid rate limits.
+              await prisma.video.upsert({
+                  where: { videoId: video.id },
+                  update: { name: video.name, poster: video.poster, assetUrl: video.assetUrl, duration: video.duration || 0, resolution: video.resolution || 'HD', play: video.play || 0, preview: video.preview || '' },
+                  create: { videoId: video.id, name: video.name, poster: video.poster, assetUrl: video.assetUrl, createdAt: new Date(video.createdAt), duration: video.duration || 0, resolution: video.resolution || 'HD', play: video.play || 0, preview: video.preview || '' },
+              });
+          }));
+          if (i + BATCH_SIZE < allApiVideos.length) {
+              await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES_MS));
+          }
+      }
+
+      // 4. Identify and delete videos that no longer exist in the API
+      const apiVideoIds = new Set(allApiVideos.map(v => v.id));
+      const videosToDelete = dbVideos.filter(dbVideo => !apiVideoIds.has(dbVideo.videoId));
+      let deletedCount = 0;
+      if (videosToDelete.length > 0) {
+          const idsToDelete = videosToDelete.map(v => v.id);
+          await prisma.$transaction([
+              prisma.subtitle.deleteMany({ where: { videoId: { in: idsToDelete } } }),
+              prisma.video.deleteMany({ where: { id: { in: idsToDelete } } })
+          ]);
+          deletedCount = videosToDelete.length;
+          console.log(`Deleted ${deletedCount} videos.`);
+      }
+
+      return NextResponse.json({ success: true, message: `Full sync complete. Processed ${allApiVideos.length} videos, deleted ${deletedCount} videos.` });
+
+    } else {
+      // =================================================================
+      // LATEST 10 SYNC LOGIC: Fetches and processes only the latest 10 videos.
+      // =================================================================
+      console.log('Fetching the latest 10 videos from API...');
+      const apiUrl = new URL('https://upnshare.com/api/v1/video/manage');
+      apiUrl.searchParams.append('perPage', '10');
+      apiUrl.searchParams.append('page', '1');
+      const response = await fetch(apiUrl.toString(), { headers: { 'Content-Type': 'application/json', 'Api-Token': process.env.UPNSHARE_API_TOKEN! } });
+      if (!response.ok) { throw new Error(`API request failed with status ${response.status}`); }
+      const { data: latestVideos = [] } = await response.json();
+
+      const processedVideos = await Promise.all(
+        latestVideos.map(async (video: VideoData) => {
+          let subtitleFiles: VideoFile[] = [];
+          try {
+            const filesResponse = await fetch(`https://upnshare.com/api/v1/video/manage/${video.id}/files`, { headers: { 'Content-Type': 'application/json', 'Api-Token': process.env.UPNSHARE_API_TOKEN! } });
+            if (filesResponse.ok) {
+              const filesData = await filesResponse.json();
+              subtitleFiles = Array.isArray(filesData) ? filesData.filter((f: VideoFile) => f.type === 'Subtitle' && f.url) : [];
+            }
+          } catch (error) { console.error(`Network error fetching subtitles for video ${video.id}:`, error); }
+
+          const videoRecord = await prisma.video.upsert({
+            where: { videoId: video.id },
+            update: { name: video.name, poster: video.poster, assetUrl: video.assetUrl, duration: video.duration || 0, resolution: video.resolution || 'HD', play: video.play || 0, preview: video.preview || '' },
+            create: { videoId: video.id, name: video.name, poster: video.poster, assetUrl: video.assetUrl, createdAt: new Date(video.createdAt), duration: video.duration || 0, resolution: video.resolution || 'HD', play: video.play || 0, preview: video.preview || '' },
+          });
+
+          if (subtitleFiles.length > 0) {
+            await prisma.$transaction([
+              prisma.subtitle.deleteMany({ where: { videoId: videoRecord.id } }),
+              prisma.subtitle.createMany({ data: subtitleFiles.map(sub => ({ id: sub.id, name: sub.name || `Subtitle_${sub.language || 'unknown'}`, url: sub.url!, language: sub.language, videoId: videoRecord.id })) })
+            ]);
+          }
+          return videoRecord;
         })
-      )
-    );
+      );
 
-    return NextResponse.json({
-      success: true,
-      newVideos: results.length,
-      message: `Added ${results.length} new videos`
-    });
-
+      return NextResponse.json({ success: true, processedVideos: processedVideos.length, message: `Synced ${processedVideos.length} latest videos from API.` });
+    }
   } catch (error) {
-    return NextResponse.json(
-      { success: false, error: 'Failed to sync videos' },
-      { status: 500 }
-    );
+    console.error('Sync error:', error);
+    return NextResponse.json({ success: false, error: 'Failed to sync videos', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
   }
 }
