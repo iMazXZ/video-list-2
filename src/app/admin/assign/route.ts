@@ -1,6 +1,6 @@
 // src/app/admin/assign/route.ts
 
-import { prisma } from "@/lib/prisma";
+import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache"; // <-- 1. Impor revalidatePath

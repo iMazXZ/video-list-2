@@ -1,64 +1,56 @@
 // src/app/admin/category/page.tsx
-
-import { prisma } from "@/lib/prisma";
-import { revalidatePath } from "next/cache";
+import prisma from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import DeleteCategoryForm from "@/components/DeleteCategoryForm"; // <-- 1. Impor komponen baru
+import { DeleteCategoryForm } from "@/components/DeleteCategoryForm";
+import { AddCategoryForm } from "@/components/AddCategoryForm";
 
 export default async function CategoryPage() {
-  const categories = await prisma.category.findMany();
+  const session = await getServerSession(authOptions);
+  if (!session) redirect("/api/auth/signin");
 
-  async function addCategory(formData: FormData) {
-    "use server";
-
-    const name = formData.get("name") as string;
-
-    if (!name) return;
-
-    await prisma.category.create({
-      data: { name },
-    });
-
-    revalidatePath("/admin/category");
-    redirect("/admin/category");
-  }
+  const categories = await prisma.category.findMany({
+    orderBy: { name: "asc" },
+  });
 
   return (
-    // Anda bisa menghapus className di sini jika sudah menggunakan layout global
-    <main>
-      <h1 className="text-3xl font-bold">Manajemen Kategori</h1>
+    <main className="max-w-4xl mx-auto p-6 space-y-6 bg-gray-50 min-h-screen">
+      <div className="bg-white p-6 rounded-lg shadow">
+        <h1 className="text-2xl font-bold text-gray-800 mb-6">
+          Manajemen Kategori
+        </h1>
 
-      {/* Form Tambah (tidak berubah) */}
-      <form action={addCategory} className="flex gap-2 my-8">
-        <input
-          type="text"
-          name="name"
-          placeholder="Nama kategori"
-          className="border px-3 py-2 text-gray-900 rounded w-full"
-          required
-        />
-        <button
-          type="submit"
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-        >
-          Tambah
-        </button>
-      </form>
+        {/* Form Tambah Kategori */}
+        <AddCategoryForm />
 
-      {/* Daftar Kategori */}
-      <ul className="space-y-2">
-        {categories.map((cat) => (
-          <li
-            key={cat.id}
-            className="border px-3 py-2 text-gray-900 rounded bg-white shadow flex justify-between items-center"
-          >
-            <span>{cat.name}</span>
-
-            {/* 2. Ganti <form> lama dengan komponen baru */}
-            <DeleteCategoryForm categoryId={cat.id} />
-          </li>
-        ))}
-      </ul>
+        {/* Daftar Kategori */}
+        <div>
+          <h2 className="text-lg font-semibold text-gray-700 mb-3">
+            Daftar Kategori
+          </h2>
+          {categories.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              Belum ada kategori yang tersedia
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {categories.map((cat) => (
+                <li
+                  key={cat.id}
+                  className="border border-gray-200 px-4 py-3 text-gray-800 rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow flex justify-between items-center"
+                >
+                  <span className="font-medium">{cat.name}</span>
+                  <DeleteCategoryForm
+                    categoryId={cat.id}
+                    categoryName={cat.name}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
     </main>
   );
 }

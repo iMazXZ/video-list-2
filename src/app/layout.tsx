@@ -3,14 +3,14 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import Providers from "./providers";
-import Navbar from "@/components/Navbar"; // <-- Impor Navbar
+import Navbar from "@/components/Navbar";
+import Providers from "@/app/providers";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "VideoHub",
-  description: "Koleksi video terbaik",
+  description: "Platform Streaming Video",
 };
 
 export default function RootLayout({
@@ -19,12 +19,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={`${inter.className} bg-slate-50`}>
+    <html lang="id">
+      <body className={inter.className}>
         <Providers>
-          <Navbar /> {/* <-- Tambahkan Navbar di sini */}
-          <main className="container mx-auto p-6">{children}</main>{" "}
-          {/* <-- Bungkus konten */}
+          <Navbar />
+          {children}
         </Providers>
       </body>
     </html>

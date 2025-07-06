@@ -1,6 +1,3 @@
-// prisma/schema.prisma
-
-// 1. Konfigurasi Datasource & Generator
 datasource db {
   provider = "sqlite"
   url      = "file:./dev.db"
@@ -10,7 +7,20 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// 2. Model Aplikasi Anda
+model Video {
+  id         String         @id @default(cuid())
+  videoId    String         @unique // ID from external API
+  name       String
+  poster     String
+  preview    String
+  assetUrl   String
+  createdAt  DateTime
+  duration   Int
+  resolution String
+  play       Int
+  categories VideoCategory[]
+}
+
 model Category {
   id            Int             @id @default(autoincrement())
   name          String
@@ -20,13 +30,13 @@ model Category {
 model VideoCategory {
   id         Int      @id @default(autoincrement())
   videoId    String
+  video      Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
   categoryId Int
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@unique([videoId, categoryId])
 }
 
-// 3. Model yang diperlukan oleh NextAuth.js (Kompatibel dengan SQLite)
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -43,12 +53,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? // Dihapus @db.Text
-  access_token      String? // Dihapus @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? // Dihapus @db.Text
+  id_token          String?
   session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

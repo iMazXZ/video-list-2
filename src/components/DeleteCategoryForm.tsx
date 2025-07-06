@@ -1,36 +1,47 @@
 // src/components/DeleteCategoryForm.tsx
+"use client";
 
-"use client"; // <-- Tandai sebagai Client Component
+import { useRouter } from "next/navigation";
+import { toast } from "react-hot-toast";
 
-import React from "react";
-
-// Komponen ini menerima categoryId sebagai prop
-export default function DeleteCategoryForm({
+// Changed from default export to named export
+export function DeleteCategoryForm({
   categoryId,
+  categoryName,
 }: {
   categoryId: number;
+  categoryName: string;
 }) {
-  // Fungsi untuk menangani event submit
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    // Tampilkan dialog konfirmasi di browser
-    const userConfirmed = confirm("Yakin ingin hapus kategori ini?");
+  const router = useRouter();
 
-    // Jika pengguna membatalkan, hentikan pengiriman form
-    if (!userConfirmed) {
-      event.preventDefault();
+  async function handleDelete() {
+    if (!confirm(`Yakin ingin menghapus kategori "${categoryName}"?`)) return;
+
+    try {
+      const response = await fetch(`/api/admin/categories/${categoryId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        toast.success("Kategori berhasil dihapus");
+        router.refresh();
+      } else {
+        const error = await response.json();
+        toast.error(error.message || "Gagal menghapus kategori");
+      }
+    } catch (error) {
+      toast.error("Terjadi kesalahan saat menghapus kategori");
+      console.error("Delete error:", error);
     }
-  };
+  }
 
   return (
-    <form
-      action={`/admin/category/delete`}
-      method="POST"
-      onSubmit={handleSubmit}
+    <button
+      onClick={handleDelete}
+      className="text-red-600 hover:text-red-800 px-3 py-1 rounded-md hover:bg-red-50 transition-colors"
+      title="Hapus kategori"
     >
-      <input type="hidden" name="id" value={categoryId} />
-      <button className="text-red-600 hover:underline text-sm" type="submit">
-        Hapus
-      </button>
-    </form>
+      Hapus
+    </button>
   );
 }
