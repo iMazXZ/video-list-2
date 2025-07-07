@@ -16,12 +16,33 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
   },
+  // =======================================================
+  // TAMBAHAN BARU: EVENTS CALLBACK UNTUK DEBUGGING
+  // =======================================================
+  events: {
+    async createUser(message) {
+      console.log("--- createUser Event Triggered ---");
+      console.log("Mencoba membuat user baru di database:", message.user);
+      try {
+        // Kita tidak perlu melakukan apa-apa di sini, karena adapter sudah melakukannya.
+        // Blok ini hanya untuk memastikan event ini terpanggil.
+        console.log("Event createUser selesai tanpa error yang terlihat.");
+      } catch (error) {
+        console.error("!!! ERROR SAAT EVENT createUser !!!", error);
+      }
+      console.log("====================================");
+    },
+    async linkAccount(message) {
+        console.log("--- linkAccount Event Triggered ---");
+        console.log("Menghubungkan akun ke user:", message.account);
+        console.log("===================================");
+    }
+  },
   callbacks: {
-    // Kita kembalikan callback ini, tapi buat agar selalu mengizinkan login untuk debugging.
     async signIn({ user }) {
       console.log("--- signIn Callback Triggered ---");
       console.log("Mengizinkan semua sign-in untuk debugging.");
-      return true; 
+      return true;
     },
     async jwt({ token, user }) {
       if (user) {
