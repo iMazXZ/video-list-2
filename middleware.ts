@@ -16,13 +16,7 @@ export async function middleware(req: NextRequest) {
 
   // Check for admin role on admin routes
   if (token && pathname.startsWith("/admin") && token.role !== "ADMIN") {
-    // You can choose to redirect or show error
     return NextResponse.redirect(new URL("/", req.url));
-    
-    // OR show an error message
-    // const errorUrl = new URL("/auth/error", req.url);
-    // errorUrl.searchParams.set("message", "Admin access required");
-    // return NextResponse.redirect(errorUrl);
   }
 
   return NextResponse.next();
@@ -31,6 +25,5 @@ export async function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     "/admin/:path*",
-    // Add other protected paths if needed
   ],
 };
