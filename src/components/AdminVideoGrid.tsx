@@ -9,7 +9,6 @@ import { bulkAssignCategory } from "@/actions/bulkAssignCategory";
 import TagManager from "./TagManager"; // Impor TagManager
 import {
   stripExtension,
-  removeBracketedText,
   removeResolutionText,
   removeSourceAndCodec,
 } from "@/lib/utils";
@@ -166,9 +165,7 @@ export default function AdminVideoGrid({
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-white text-sm line-clamp-2 mb-1">
                       {removeSourceAndCodec(
-                        removeResolutionText(
-                          removeBracketedText(stripExtension(video.name))
-                        )
+                        removeResolutionText(stripExtension(video.name))
                       )}
                     </p>
                     <p className="text-xs text-gray-400">

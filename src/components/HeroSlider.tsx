@@ -46,7 +46,7 @@ export default function HeroSlider({ videos }: HeroSliderProps) {
   const activeVideo = videos[currentIndex];
 
   return (
-    <div className="relative rounded-3xl overflow-hidden min-h-[400px] md:min-h-[500px] bg-gray-900 border border-gray-700/50 group">
+    <div className="relative rounded-3xl overflow-hidden min-h-[400px] md:min-h-[400px] bg-gray-900 border border-gray-700/50 group">
       {/* Background Images Container */}
       {videos.map((video, index) => (
         <div

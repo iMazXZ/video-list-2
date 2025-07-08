@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import prisma from "@/lib/prisma";
+import type { Metadata } from "next";
 import type { Prisma } from "@prisma/client";
 import RelatedVideos from "@/components/RelatedVideos";
 import ShareButton from "@/components/ShareButton";
@@ -22,6 +23,49 @@ import {
   FiStar,
   FiCode,
 } from "react-icons/fi";
+
+// --- FUNGSI UNTUK METADATA DINAMIS ---
+type Props = {
+  params: { id: string };
+};
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const videoId = params.id;
+  const video = await prisma.video.findUnique({
+    where: { videoId },
+  });
+
+  if (!video) {
+    return {
+      title: "Video Not Found",
+      description: "The video you are looking for could not be found.",
+    };
+  }
+
+  const cleanedTitle = removeSourceAndCodec(
+    removeResolutionText(removeBracketedText(stripExtension(video.name)))
+  );
+
+  const posterUrl = video.poster
+    ? `${video.assetUrl}${video.poster}`
+    : "/default-poster.jpg";
+
+  return {
+    title: `${cleanedTitle} | VideoHub`,
+    description: `Watch ${cleanedTitle} on VideoHub. High quality streaming video.`,
+    openGraph: {
+      title: cleanedTitle,
+      description: `Watch ${cleanedTitle} on VideoHub.`,
+      url: `https://videohub-taupe.vercel.app/video/${videoId}`,
+      siteName: "VideoHub",
+      images: [{ url: posterUrl, width: 1280, height: 720 }],
+      locale: "en_US",
+      type: "video.other",
+    },
+  };
+}
+
+// --- KOMPONEN HALAMAN ---
 
 // Tipe data yang lebih akurat dari Prisma, termasuk semua relasi
 type VideoWithDetails = Prisma.VideoGetPayload<{
@@ -53,7 +97,7 @@ export default async function VideoDetailPage({
     notFound();
   }
 
-  // Logika Anda untuk video terkait berdasarkan tag pertama (ini sudah bagus!)
+  // Logika Anda untuk video terkait berdasarkan tag pertama
   const firstTagId = video.tags[0]?.tagId;
   const relatedVideos = firstTagId
     ? await prisma.video.findMany({
@@ -170,7 +214,6 @@ export default async function VideoDetailPage({
                     {video.subtitles.map((sub) => (
                       <a
                         key={sub.id}
-                        // --- PERBAIKAN DI SINI ---
                         href={`${video.assetUrl}${sub.url}`}
                         target="_blank"
                         rel="noopener noreferrer"
