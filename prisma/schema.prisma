@@ -13,8 +13,8 @@ model Video {
   id         String         @id @default(cuid())
   videoId    String         @unique // ID from external API
   name       String
-  poster     String
-  preview    String
+  poster     String?
+  preview    String?
   assetUrl   String
   createdAt  DateTime
   duration   Int

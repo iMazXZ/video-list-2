@@ -1,16 +1,19 @@
 import { NextResponse, NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 
+// Interface diperbarui untuk menerima nilai opsional/nullable
 interface VideoData {
   id: string;
   name: string;
-  poster: string;
+  poster?: string | null; // Diubah menjadi opsional/nullable
   assetUrl: string;
   createdAt: string;
   duration?: number;
   resolution?: string;
   play?: number;
-  preview?: string;
+  preview?: string | null; // Diubah menjadi opsional/nullable
+  download?: number;
+  codec?: string;
 }
 
 interface VideoFile {
@@ -29,9 +32,6 @@ export async function POST(req: NextRequest) {
     const syncType = searchParams.get('syncType') || 'latest';
 
     if (syncType === 'full') {
-      // =================================================================
-      // FULL SYNC LOGIC: Fetches all, processes them, and deletes old ones.
-      // =================================================================
       console.log('Starting FULL video sync...');
       
       let allApiVideos: VideoData[] = [];
@@ -62,30 +62,34 @@ export async function POST(req: NextRequest) {
       for (let i = 0; i < allApiVideos.length; i += BATCH_SIZE) {
           const batch = allApiVideos.slice(i, i + BATCH_SIZE);
           await Promise.all(batch.map(async (video) => {
-              // --- AWAL PERUBAHAN ---
-              // Sekarang kita juga mengambil subtitle untuk setiap video, sama seperti di 'latest sync'
-              let subtitleFiles: VideoFile[] = [];
-              try {
-                const filesResponse = await fetch(`https://upnshare.com/api/v1/video/manage/${video.id}/files`, { headers: { 'Content-Type': 'application/json', 'Api-Token': process.env.UPNSHARE_API_TOKEN! } });
-                if (filesResponse.ok) {
-                  const filesData = await filesResponse.json();
-                  subtitleFiles = Array.isArray(filesData) ? filesData.filter((f: VideoFile) => f.type === 'Subtitle' && f.url) : [];
-                }
-              } catch (error) { console.error(`Network error fetching subtitles for video ${video.id}:`, error); }
-
-              const videoRecord = await prisma.video.upsert({
+              // Logika upsert diperbarui untuk menangani null
+              await prisma.video.upsert({
                   where: { videoId: video.id },
-                  update: { name: video.name, poster: video.poster, assetUrl: video.assetUrl, duration: video.duration || 0, resolution: video.resolution || 'HD', play: video.play || 0, preview: video.preview || '' },
-                  create: { videoId: video.id, name: video.name, poster: video.poster, assetUrl: video.assetUrl, createdAt: new Date(video.createdAt), duration: video.duration || 0, resolution: video.resolution || 'HD', play: video.play || 0, preview: video.preview || '' },
+                  update: { 
+                    name: video.name, 
+                    poster: video.poster || null, 
+                    assetUrl: video.assetUrl, 
+                    duration: video.duration || 0, 
+                    resolution: video.resolution || 'HD', 
+                    play: video.play || 0, 
+                    preview: video.preview || null,
+                    download: video.download || 0,
+                    codec: video.codec || null,
+                  },
+                  create: { 
+                    videoId: video.id, 
+                    name: video.name, 
+                    poster: video.poster || null, 
+                    assetUrl: video.assetUrl, 
+                    createdAt: new Date(video.createdAt), 
+                    duration: video.duration || 0, 
+                    resolution: video.resolution || 'HD', 
+                    play: video.play || 0, 
+                    preview: video.preview || null,
+                    download: video.download || 0,
+                    codec: video.codec || null,
+                  },
               });
-
-              if (subtitleFiles.length > 0) {
-                await prisma.$transaction([
-                  prisma.subtitle.deleteMany({ where: { videoId: videoRecord.id } }),
-                  prisma.subtitle.createMany({ data: subtitleFiles.map(sub => ({ id: sub.id, name: sub.name || `Subtitle_${sub.language || 'unknown'}`, url: sub.url!, language: sub.language, videoId: videoRecord.id })) })
-                ]);
-              }
-              // --- AKHIR PERUBAHAN ---
           }));
           if (i + BATCH_SIZE < allApiVideos.length) {
               await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES_MS));
@@ -108,12 +112,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: `Full sync complete. Processed ${allApiVideos.length} videos, deleted ${deletedCount} videos.` });
 
     } else {
-      // =================================================================
-      // LATEST 10 SYNC LOGIC: (Tidak ada perubahan di sini)
-      // =================================================================
-      console.log('Fetching the latest 10 videos from API...');
+      console.log('Fetching the latest 20 videos from API...');
       const apiUrl = new URL('https://upnshare.com/api/v1/video/manage');
-      apiUrl.searchParams.append('perPage', '10');
+      apiUrl.searchParams.append('perPage', '20');
       apiUrl.searchParams.append('page', '1');
       const response = await fetch(apiUrl.toString(), { headers: { 'Content-Type': 'application/json', 'Api-Token': process.env.UPNSHARE_API_TOKEN! } });
       if (!response.ok) { throw new Error(`API request failed with status ${response.status}`); }
@@ -130,10 +131,33 @@ export async function POST(req: NextRequest) {
             }
           } catch (error) { console.error(`Network error fetching subtitles for video ${video.id}:`, error); }
 
+          // Logika upsert diperbarui untuk menangani null
           const videoRecord = await prisma.video.upsert({
             where: { videoId: video.id },
-            update: { name: video.name, poster: video.poster, assetUrl: video.assetUrl, duration: video.duration || 0, resolution: video.resolution || 'HD', play: video.play || 0, preview: video.preview || '' },
-            create: { videoId: video.id, name: video.name, poster: video.poster, assetUrl: video.assetUrl, createdAt: new Date(video.createdAt), duration: video.duration || 0, resolution: video.resolution || 'HD', play: video.play || 0, preview: video.preview || '' },
+            update: { 
+              name: video.name, 
+              poster: video.poster || null, 
+              assetUrl: video.assetUrl, 
+              duration: video.duration || 0, 
+              resolution: video.resolution || 'HD', 
+              play: video.play || 0, 
+              preview: video.preview || null,
+              download: video.download || 0,
+              codec: video.codec || null,
+            },
+            create: { 
+              videoId: video.id, 
+              name: video.name, 
+              poster: video.poster || null, 
+              assetUrl: video.assetUrl, 
+              createdAt: new Date(video.createdAt), 
+              duration: video.duration || 0, 
+              resolution: video.resolution || 'HD', 
+              play: video.play || 0, 
+              preview: video.preview || null,
+              download: video.download || 0,
+              codec: video.codec || null,
+            },
           });
 
           if (subtitleFiles.length > 0) {

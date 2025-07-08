@@ -87,15 +87,15 @@ export default function SyncManagerSimple() {
 
   return (
     <div className="flex items-center justify-start gap-4 p-4">
-      {/* Latest 10 Sync Button */}
+      {/* Latest 20 Sync Button */}
       <button
         onClick={() => handleSync("latest")}
         disabled={!!loading}
         className="flex items-center gap-2 px-4 py-2 rounded-md font-medium bg-sky-600 hover:bg-sky-500 disabled:bg-slate-600 disabled:cursor-not-allowed text-white transition-all duration-300"
-        title="Sync Latest 10 Videos"
+        title="Sync Latest 20 Videos"
       >
         {loading === "latest" ? <LoaderIcon /> : <ClockIcon />}
-        <span>10 Latest Sync</span>
+        <span>20 Latest Sync</span>
       </button>
 
       {/* Full Sync Button */}
