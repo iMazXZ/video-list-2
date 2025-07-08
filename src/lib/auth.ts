@@ -4,7 +4,6 @@ import GitHubProvider from "next-auth/providers/github";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import prisma from "@/lib/prisma";
 
-// Definisikan daftar email admin di satu tempat agar mudah dikelola
 const ADMIN_EMAILS = ["akungamemaulana@gmail.com"];
 
 export const authOptions: NextAuthOptions = {
@@ -19,30 +18,21 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
   },
   callbacks: {
-    /**
-     * Callback `jwt` ini adalah kunci utamanya.
-     * Ia dipanggil setiap kali token JWT dibuat atau diperbarui.
-     */
     async jwt({ token, user }) {
-      // `user` hanya ada saat pertama kali login.
       if (user) {
-        // 1. Ambil data terbaru dari database untuk memastikan kita punya peran (role) yang benar.
         const dbUser = await prisma.user.findUnique({
           where: { id: user.id },
         });
 
-        // 2. Jika user ada di database, teruskan perannya ke token.
         if (dbUser) {
           token.id = dbUser.id;
-          token.role = dbUser.role;
+          // Perbaikan: Berikan nilai default 'USER' jika role-nya null
+          token.role = dbUser.role ?? 'USER'; 
         }
       }
       return token;
     },
 
-    /**
-     * Callback `session` mengambil data dari token dan menyediakannya untuk sisi klien.
-     */
     async session({ session, token }) {
       if (session.user && token) {
         session.user.id = token.id as string;
@@ -52,10 +42,6 @@ export const authOptions: NextAuthOptions = {
     },
   },
   events: {
-    /**
-     * Event `createUser` dipanggil SETELAH adapter berhasil membuat user baru.
-     * Di sinilah kita menetapkan peran ADMIN untuk pertama kalinya.
-     */
     async createUser({ user }) {
       const userEmail = user.email;
 
@@ -68,7 +54,6 @@ export const authOptions: NextAuthOptions = {
     },
   },
   pages: {
-    // Arahkan ke halaman error kustom jika login gagal
     error: '/auth/error',
   },
   secret: process.env.NEXTAUTH_SECRET,
