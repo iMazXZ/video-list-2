@@ -7,6 +7,12 @@ import { toast } from "react-hot-toast";
 import { assignCategory } from "@/actions/assignCategory";
 import { bulkAssignCategory } from "@/actions/bulkAssignCategory";
 import TagManager from "./TagManager"; // Impor TagManager
+import {
+  stripExtension,
+  removeBracketedText,
+  removeResolutionText,
+  removeSourceAndCodec,
+} from "@/lib/utils";
 
 // Tipe data yang kita butuhkan, sekarang termasuk tags
 type Category = { id: number; name: string };
@@ -159,7 +165,11 @@ export default function AdminVideoGrid({
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-white text-sm line-clamp-2 mb-1">
-                      {video.name}
+                      {removeSourceAndCodec(
+                        removeResolutionText(
+                          removeBracketedText(stripExtension(video.name))
+                        )
+                      )}
                     </p>
                     <p className="text-xs text-gray-400">
                       {video.play.toLocaleString()} views •{" "}

@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  stripExtension,
+  removeBracketedText,
+  removeResolutionText,
+  removeSourceAndCodec,
+} from "@/lib/utils";
 import { useState, useEffect, useCallback } from "react";
 import type { Prisma } from "@prisma/client";
 import Link from "next/link";
@@ -60,21 +66,18 @@ export default function HeroSlider({ videos }: HeroSliderProps) {
       {/* Content */}
       <div className="relative z-10 flex items-end w-full h-full p-6 md:p-10">
         <div className="max-w-2xl">
-          <h1 className="text-3xl md:text-5xl font-bold text-white leading-tight drop-shadow-lg transition-all duration-500">
-            {activeVideo.name}
+          <h1 className="text-xl md:text-xl font-bold text-white leading-tight drop-shadow-lg transition-all duration-500">
+            {removeSourceAndCodec(
+              removeResolutionText(
+                removeBracketedText(stripExtension(activeVideo.name))
+              )
+            )}
           </h1>
-          <p className="mt-4 text-gray-300 line-clamp-2 transition-all duration-500">
-            {activeVideo.play.toLocaleString()} views •{" "}
-            {new Date(activeVideo.createdAt).toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "long",
-            })}
-          </p>
           <Link
             href={`/video/${activeVideo.videoId}`}
-            className="mt-6 inline-flex items-center gap-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-8 py-4 rounded-full font-bold text-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
+            className="mt-6 inline-flex items-center gap-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white px-8 py-4 rounded-full font-bold text-sm hover:from-green-600 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
           >
-            <FiPlayCircle size={24} />
+            <FiPlayCircle size={16} />
             Watch Now
           </Link>
         </div>

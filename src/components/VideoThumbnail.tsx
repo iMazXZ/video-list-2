@@ -1,6 +1,11 @@
 "use client";
 
-import { stripExtension } from "@/lib/utils";
+import {
+  stripExtension,
+  removeBracketedText,
+  removeResolutionText,
+  removeSourceAndCodec,
+} from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
 import Link from "next/link";
 import { useState, useRef } from "react";
@@ -111,7 +116,11 @@ export default function VideoThumbnail({ video }: VideoThumbnailProps) {
               isHovered ? "text-green-400" : ""
             }`}
           >
-            {stripExtension(video.name)}
+            {removeSourceAndCodec(
+              removeResolutionText(
+                removeBracketedText(stripExtension(video.name))
+              )
+            )}
           </h3>
           <div className="flex justify-between items-center">
             <p className="text-gray-400 text-xs">

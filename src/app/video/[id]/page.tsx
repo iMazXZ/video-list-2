@@ -1,7 +1,14 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import ShareButton from "@/components/ShareButton";
-import { formatDuration, formatNumber, stripExtension } from "@/lib/utils";
+import {
+  formatDuration,
+  formatNumber,
+  stripExtension,
+  removeBracketedText,
+  removeResolutionText,
+  removeSourceAndCodec,
+} from "@/lib/utils";
 import {
   FiArrowLeft,
   FiEye,
@@ -105,7 +112,11 @@ export default async function VideoDetailPage({
             {/* Video Info Card */}
             <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-3xl p-6 sm:p-8 shadow-2xl border border-gray-700/50">
               <h1 className="text-xl sm:text-xl md:text-xl font-bold text-white mb-4 leading-tight">
-                {stripExtension(video.name)}
+                {removeSourceAndCodec(
+                  removeResolutionText(
+                    removeBracketedText(stripExtension(video.name))
+                  )
+                )}
               </h1>
 
               {/* Stats Grid */}
