@@ -1,6 +1,7 @@
 // app/api/admin/videos/route.ts
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import type { Prisma } from '@prisma/client'; // Impor tipe dari Prisma
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -10,7 +11,8 @@ export async function GET(request: Request) {
   const searchQuery = searchParams.get('q') || '';
 
   try {
-    const where = {
+    // Tambahkan tipe eksplisit pada klausa 'where'
+    const where: Prisma.VideoWhereInput = {
       ...(category && {
         categories: {
           some: {
@@ -25,7 +27,7 @@ export async function GET(request: Request) {
 
     const [videos, totalVideos, categories] = await Promise.all([
       prisma.video.findMany({
-        where,
+        where, // Sekarang 'where' memiliki tipe yang benar
         skip,
         take,
         orderBy: { createdAt: 'desc' },
