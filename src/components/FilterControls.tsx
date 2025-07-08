@@ -19,11 +19,13 @@ export default function FilterControls({ categories }: FilterControlsProps) {
 
   const selectedCategory = searchParams.get("category");
   const currentSort = searchParams.get("sort") || "newest";
-  const currentQuery = searchParams.get("q") || "";
 
   const handleSortChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newSort = e.target.value;
-    const params = new URLSearchParams(searchParams);
+
+    // Perbaikan: Ubah searchParams menjadi string sebelum membuat instance baru
+    const params = new URLSearchParams(searchParams.toString());
+
     params.set("sort", newSort);
     router.push(`${pathname}?${params.toString()}`);
   };
@@ -33,7 +35,7 @@ export default function FilterControls({ categories }: FilterControlsProps) {
       {/* Category Links */}
       <div className="flex flex-wrap items-center gap-2">
         <Link
-          href={currentQuery ? `/?q=${currentQuery}` : "/"}
+          href={searchParams.has("q") ? `/?q=${searchParams.get("q")}` : "/"}
           className={`px-4 py-2 rounded-full font-medium text-sm transition-all duration-300 ${
             !selectedCategory
               ? "bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg"
@@ -43,7 +45,7 @@ export default function FilterControls({ categories }: FilterControlsProps) {
           All
         </Link>
         {categories.map((cat) => {
-          const params = new URLSearchParams(searchParams);
+          const params = new URLSearchParams(searchParams.toString());
           params.set("category", cat.name);
           return (
             <Link
