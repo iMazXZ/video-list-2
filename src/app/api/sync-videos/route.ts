@@ -34,7 +34,6 @@ export async function POST(req: NextRequest) {
       // =================================================================
       console.log('Starting FULL video sync...');
       
-      // 1. Fetch ALL videos from the API with pagination
       let allApiVideos: VideoData[] = [];
       let page = 1;
       const perPage = 100;
@@ -56,28 +55,43 @@ export async function POST(req: NextRequest) {
       }
       console.log(`Finished fetching. Total videos from API: ${allApiVideos.length}`);
 
-      // 2. Get all video IDs from DB for deletion comparison
       const dbVideos = await prisma.video.findMany({ select: { id: true, videoId: true } });
 
-      // 3. Process all API videos (create/update) in batches
       const BATCH_SIZE = 10;
       const DELAY_BETWEEN_BATCHES_MS = 1000;
       for (let i = 0; i < allApiVideos.length; i += BATCH_SIZE) {
           const batch = allApiVideos.slice(i, i + BATCH_SIZE);
           await Promise.all(batch.map(async (video) => {
-              // Note: Subtitle fetching is skipped in full sync to avoid rate limits.
-              await prisma.video.upsert({
+              // --- AWAL PERUBAHAN ---
+              // Sekarang kita juga mengambil subtitle untuk setiap video, sama seperti di 'latest sync'
+              let subtitleFiles: VideoFile[] = [];
+              try {
+                const filesResponse = await fetch(`https://upnshare.com/api/v1/video/manage/${video.id}/files`, { headers: { 'Content-Type': 'application/json', 'Api-Token': process.env.UPNSHARE_API_TOKEN! } });
+                if (filesResponse.ok) {
+                  const filesData = await filesResponse.json();
+                  subtitleFiles = Array.isArray(filesData) ? filesData.filter((f: VideoFile) => f.type === 'Subtitle' && f.url) : [];
+                }
+              } catch (error) { console.error(`Network error fetching subtitles for video ${video.id}:`, error); }
+
+              const videoRecord = await prisma.video.upsert({
                   where: { videoId: video.id },
                   update: { name: video.name, poster: video.poster, assetUrl: video.assetUrl, duration: video.duration || 0, resolution: video.resolution || 'HD', play: video.play || 0, preview: video.preview || '' },
                   create: { videoId: video.id, name: video.name, poster: video.poster, assetUrl: video.assetUrl, createdAt: new Date(video.createdAt), duration: video.duration || 0, resolution: video.resolution || 'HD', play: video.play || 0, preview: video.preview || '' },
               });
+
+              if (subtitleFiles.length > 0) {
+                await prisma.$transaction([
+                  prisma.subtitle.deleteMany({ where: { videoId: videoRecord.id } }),
+                  prisma.subtitle.createMany({ data: subtitleFiles.map(sub => ({ id: sub.id, name: sub.name || `Subtitle_${sub.language || 'unknown'}`, url: sub.url!, language: sub.language, videoId: videoRecord.id })) })
+                ]);
+              }
+              // --- AKHIR PERUBAHAN ---
           }));
           if (i + BATCH_SIZE < allApiVideos.length) {
               await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES_MS));
           }
       }
 
-      // 4. Identify and delete videos that no longer exist in the API
       const apiVideoIds = new Set(allApiVideos.map(v => v.id));
       const videosToDelete = dbVideos.filter(dbVideo => !apiVideoIds.has(dbVideo.videoId));
       let deletedCount = 0;
@@ -95,7 +109,7 @@ export async function POST(req: NextRequest) {
 
     } else {
       // =================================================================
-      // LATEST 10 SYNC LOGIC: Fetches and processes only the latest 10 videos.
+      // LATEST 10 SYNC LOGIC: (Tidak ada perubahan di sini)
       // =================================================================
       console.log('Fetching the latest 10 videos from API...');
       const apiUrl = new URL('https://upnshare.com/api/v1/video/manage');
