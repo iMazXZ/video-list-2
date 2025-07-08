@@ -8,10 +8,10 @@ export async function updateVideoTags(videoId: string, tagsString: string) {
     return { error: 'Video ID is required.' };
   }
 
-  // 1. Bersihkan dan proses string input menjadi array nama tag unik
+  // 1. Bersihkan string input, tapi pertahankan huruf aslinya
   const tagNames = tagsString
     .split(',')
-    .map(tag => tag.trim().toLowerCase()) // Ubah ke huruf kecil untuk konsistensi
+    .map(tag => tag.trim()) // .toLowerCase() telah dihapus
     .filter(tag => tag.length > 0); // Hapus tag kosong
 
   try {
@@ -23,6 +23,7 @@ export async function updateVideoTags(videoId: string, tagsString: string) {
 
       if (tagNames.length > 0) {
         // 3. Cari tag yang sudah ada atau buat yang baru (upsert)
+        // Pencarian 'where: { name }' sekarang akan case-sensitive
         const tags = await Promise.all(
           tagNames.map(name => 
             tx.tag.upsert({

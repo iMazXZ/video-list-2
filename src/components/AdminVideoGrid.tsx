@@ -172,7 +172,8 @@ export default function AdminVideoGrid({
                       )}
                     </p>
                     <p className="text-xs text-gray-400">
-                      {video.play.toLocaleString()} views •{" "}
+                      {video.play.toLocaleString()} •{" "}
+                      {video.resolution.toLocaleString()} •{" "}
                       {formatDuration(video.duration)}
                     </p>
                   </div>

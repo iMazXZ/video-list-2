@@ -5,13 +5,19 @@ import VideoThumbnail from "@/components/VideoThumbnail";
 import Pagination from "@/components/Pagination";
 import VideoCarousel from "@/components/VideoCarousel";
 import FilterControls from "@/components/FilterControls";
-import HeroSlider from "@/components/HeroSlider"; // Pastikan ini diimpor
+import HeroSlider from "@/components/HeroSlider";
 
 // Tipe data untuk video, kategori, dan props
 type Video = Prisma.VideoGetPayload<{}>;
 type Category = Prisma.CategoryGetPayload<{}>;
 interface Props {
-  searchParams: { category?: string; page?: string; sort?: string; q?: string };
+  searchParams: {
+    category?: string;
+    page?: string;
+    sort?: string;
+    q?: string;
+    tag?: string;
+  };
 }
 
 // Halaman Utama
@@ -20,12 +26,16 @@ export default async function Home({ searchParams }: Props) {
   const perPage = 20;
   const skip = (currentPage - 1) * perPage;
   const selectedCategory = searchParams.category;
+  const selectedTag = searchParams.tag;
   const sort = searchParams.sort || "newest";
   const query = searchParams.q || "";
 
   const where: Prisma.VideoWhereInput = {
     ...(selectedCategory && {
       categories: { some: { category: { name: selectedCategory } } },
+    }),
+    ...(selectedTag && {
+      tags: { some: { tag: { name: selectedTag } } },
     }),
     ...(query && {
       name: { contains: query, mode: "insensitive" },
@@ -47,31 +57,47 @@ export default async function Home({ searchParams }: Props) {
     }
   })();
 
-  // Fetch data secara paralel, termasuk 5 video untuk slider
+  // Fetch data secara paralel
   const [
     videos,
     totalVideos,
     categories,
     trendingVideos,
-    featuredVideos, // Tambahkan ini kembali
+    featuredVideos, // Ambil video untuk hero slider
   ] = await Promise.all([
     prisma.video.findMany({ where, skip, take: perPage, orderBy }),
     prisma.video.count({ where }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
     prisma.video.findMany({ orderBy: { play: "desc" }, take: 10 }),
-    prisma.video.findMany({ orderBy: { play: "desc" }, take: 5 }), // Query untuk slider
+    // --- PERUBAHAN DI SINI ---
+    // Mengambil 5 video terbaru yang memiliki tag "Trending"
+    prisma.video.findMany({
+      where: {
+        tags: {
+          some: {
+            tag: {
+              name: "Trending", // Pastikan Anda menggunakan nama tag yang konsisten
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" }, // Urutkan berdasarkan yang terbaru
+      take: 5,
+    }),
+    // --- Jika Anda ingin menampilkan 5 video terbaru (tanpa tag), ganti query di atas dengan ini: ---
+    // prisma.video.findMany({ orderBy: { createdAt: 'desc' }, take: 5 }),
   ]);
 
   const totalPages = Math.ceil(totalVideos / perPage);
 
-  const isFiltered = query || selectedCategory;
+  const isFiltered = query || selectedCategory || selectedTag;
+  const filterName = query || selectedCategory || selectedTag;
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white">
       <div className="max-w-7xl mx-auto py-8 space-y-12">
         {!isFiltered ? (
           <>
-            {/* Sembunyikan HeroSlider di mobile (hidden) dan tampilkan di desktop (md:block) */}
             <div className="hidden md:block px-4 sm:px-6 lg:px-8">
               <HeroSlider videos={featuredVideos} />
             </div>
@@ -104,10 +130,7 @@ export default async function Home({ searchParams }: Props) {
           </>
         ) : (
           <div className="px-4 sm:px-6 lg:px-8 space-y-8">
-            <h2 className="text-3xl font-bold">
-              Search Results for "{query || selectedCategory}"
-            </h2>
-            <FilterControls categories={categories} />
+            <h2 className="text-3xl font-bold">{filterName}</h2>
             {videos.length === 0 ? (
               <div className="text-center py-16">
                 <p className="text-gray-400 text-xl">No videos found.</p>

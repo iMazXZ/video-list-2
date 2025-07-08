@@ -1,5 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import prisma from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
+import RelatedVideos from "@/components/RelatedVideos";
 import ShareButton from "@/components/ShareButton";
 import {
   formatDuration,
@@ -19,34 +22,15 @@ import {
   FiStar,
   FiCode,
 } from "react-icons/fi";
-import prisma from "@/lib/prisma";
 
-interface Video {
-  id: string;
-  videoId: string;
-  name: string;
-  poster: string;
-  preview: string;
-  assetUrl: string;
-  duration: number;
-  resolution: string;
-  play: number;
-  download: number;
-  codec: string | null;
-  createdAt: Date;
-  categories: {
-    category: {
-      id: number;
-      name: string;
-    };
-  }[];
-  subtitles: {
-    id: string;
-    name: string;
-    url: string;
-    language: string | null;
-  }[];
-}
+// Tipe data yang lebih akurat dari Prisma, termasuk semua relasi
+type VideoWithDetails = Prisma.VideoGetPayload<{
+  include: {
+    categories: { include: { category: true } };
+    tags: { include: { tag: true } };
+    subtitles: true;
+  };
+}>;
 
 export default async function VideoDetailPage({
   params,
@@ -55,15 +39,12 @@ export default async function VideoDetailPage({
 }) {
   const videoId = params.id;
 
-  // Fetch video from database with subtitles
-  const video = await prisma.video.findUnique({
+  // Query utama untuk mengambil semua detail video yang dibutuhkan
+  const video: VideoWithDetails | null = await prisma.video.findUnique({
     where: { videoId },
     include: {
-      categories: {
-        include: {
-          category: true,
-        },
-      },
+      categories: { include: { category: true } },
+      tags: { include: { tag: true } },
       subtitles: true,
     },
   });
@@ -72,13 +53,30 @@ export default async function VideoDetailPage({
     notFound();
   }
 
-  // Use external player URLs
+  // Logika Anda untuk video terkait berdasarkan tag pertama (ini sudah bagus!)
+  const firstTagId = video.tags[0]?.tagId;
+  const relatedVideos = firstTagId
+    ? await prisma.video.findMany({
+        where: {
+          id: { not: video.id },
+          tags: { some: { tagId: firstTagId } },
+        },
+        take: 6,
+        orderBy: { play: "desc" },
+      })
+    : [];
+
   const watchUrl = `https://nuna.upns.pro/#${video.videoId}`;
   const downloadUrl = `${watchUrl}&dl=1`;
 
+  // Membersihkan judul video menggunakan fungsi-fungsi dari utils
+  const cleanedTitle = removeSourceAndCodec(
+    removeResolutionText(removeBracketedText(stripExtension(video.name)))
+  );
+
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black">
-      {/* Back Button */}
+      {/* Tombol Kembali */}
       <div className="bg-gray-800/50 backdrop-blur-md border-b border-gray-700 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <Link
@@ -93,9 +91,9 @@ export default async function VideoDetailPage({
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Content - Wider Column */}
+          {/* Konten Utama */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Video Player */}
+            {/* Pemutar Video */}
             <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-3xl overflow-hidden shadow-2xl border border-gray-700/50">
               <div className="aspect-video relative">
                 <iframe
@@ -105,51 +103,50 @@ export default async function VideoDetailPage({
                   allowFullScreen
                   loading="eager"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
               </div>
             </div>
 
-            {/* Video Info Card */}
+            {/* Info Video */}
             <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-3xl p-6 sm:p-8 shadow-2xl border border-gray-700/50">
-              <h1 className="text-xl sm:text-xl md:text-xl font-bold text-white mb-4 leading-tight">
-                {removeSourceAndCodec(
-                  removeResolutionText(
-                    removeBracketedText(stripExtension(video.name))
-                  )
-                )}
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white mb-2 leading-tight">
+                {cleanedTitle}
               </h1>
 
-              {/* Stats Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-                <StatBadge
-                  icon={<FiEye />}
-                  label="Views"
-                  value={formatNumber(video.play)}
-                />
-                <StatBadge
-                  icon={<FiDownload />}
-                  label="Downloads"
-                  value={formatNumber(video.download)}
-                />
-                <StatBadge
-                  icon={<FiFilm />}
-                  label="Resolution"
-                  value={video.resolution}
-                />
-                <StatBadge
-                  icon={<FiClock />}
-                  label="Duration"
-                  value={formatDuration(video.duration)}
-                />
-              </div>
+              {/* Breadcrumb Kategori & Tag */}
+              <nav
+                className="flex items-center mb-6 text-sm text-gray-400"
+                aria-label="Breadcrumb"
+              >
+                {video.categories.length > 0 && (
+                  <>
+                    <Link
+                      href={`/?category=${video.categories[0].category.name}`}
+                      className="hover:text-white transition-colors"
+                    >
+                      {video.categories[0].category.name}
+                    </Link>
+                  </>
+                )}
+                {video.tags.length > 0 && (
+                  <>
+                    <span className="mx-2 text-gray-500">/</span>
+                    <Link
+                      href={`/?tag=${video.tags[0].tag.name}`}
+                      className="hover:text-white transition-colors"
+                    >
+                      {video.tags[0].tag.name}
+                    </Link>
+                  </>
+                )}
+              </nav>
 
-              {/* Action Buttons */}
+              {/* Tombol Aksi */}
               <div className="flex flex-wrap gap-4 mb-8">
                 <a
                   href={downloadUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-3 bg-gradient-to-r from-green-700 to-green-800 text-white px-6 py-3 sm:px-8 sm:py-4 rounded-full font-bold text-sm sm:text-sm hover:from-green-600 hover:to-green-700 transition-all duration-300 transform hover:scale-[1.02] shadow-lg"
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-3 bg-gradient-to-r from-green-700 to-green-800 text-white px-6 py-3 rounded-full font-bold text-sm hover:from-green-600 hover:to-green-700 transition-all duration-300 transform hover:scale-[1.02] shadow-lg"
                 >
                   <FiDownload className="w-4 h-4" />
                   Download Video
@@ -173,7 +170,8 @@ export default async function VideoDetailPage({
                     {video.subtitles.map((sub) => (
                       <a
                         key={sub.id}
-                        href={sub.url}
+                        // --- PERBAIKAN DI SINI ---
+                        href={`${video.assetUrl}${sub.url}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white px-3 py-2 rounded-lg transition-all duration-200 text-sm font-medium"
@@ -185,29 +183,48 @@ export default async function VideoDetailPage({
                 </div>
               )}
 
+              {/* Stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                <StatBadge
+                  icon={<FiEye />}
+                  label="Views"
+                  value={formatNumber(video.play)}
+                />
+                <StatBadge
+                  icon={<FiDownload />}
+                  label="Downloads"
+                  value={formatNumber(video.download)}
+                />
+                <StatBadge
+                  icon={<FiFilm />}
+                  label="Resolution"
+                  value={video.resolution}
+                />
+                <StatBadge
+                  icon={<FiClock />}
+                  label="Duration"
+                  value={formatDuration(video.duration)}
+                />
+              </div>
+
               {/* Embed Section */}
               <div className="bg-gray-800/50 rounded-xl p-4 backdrop-blur-sm border border-gray-700/30">
                 <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
-                  <FiCode className="text-green-400" />
-                  Share this Embed Video
+                  <FiCode className="text-green-400" /> Share this Embed Video
                 </h3>
                 <div className="bg-gray-900/80 rounded-lg p-2 border border-gray-700/50 overflow-x-auto">
-                  <code className="text-green-400 text-xs font-mono">
-                    {`<iframe src="${watchUrl}" width="560" height="315" frameborder="0" allowfullscreen></iframe>`}
-                  </code>
+                  <code className="text-green-400 text-xs font-mono">{`<iframe src="${watchUrl}" width="560" height="315" frameborder="0" allowfullscreen></iframe>`}</code>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Sidebar - Sticky Details */}
+          {/* Sidebar */}
           <div className="lg:col-span-1">
             <div className="sticky top-24 bg-gradient-to-br from-gray-800 to-gray-900 rounded-3xl p-6 shadow-2xl border border-gray-700/50">
               <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                <FiStar className="text-green-400" />
-                Video Details
+                <FiStar className="text-green-400" /> Video Details
               </h2>
-
               <div className="space-y-4">
                 <DetailItem
                   icon={<FiFilm />}
@@ -222,7 +239,7 @@ export default async function VideoDetailPage({
                 <DetailItem
                   icon={<FiCalendar />}
                   label="Uploaded"
-                  value={video.createdAt.toLocaleDateString("en-US", {
+                  value={new Date(video.createdAt).toLocaleDateString("en-US", {
                     year: "numeric",
                     month: "short",
                     day: "numeric",
@@ -236,8 +253,6 @@ export default async function VideoDetailPage({
                   />
                 )}
               </div>
-
-              {/* Quality Badge */}
               <div className="mt-6 p-4 bg-gradient-to-r from-green-500/10 to-emerald-600/10 rounded-xl border border-green-500/20">
                 <div className="flex items-center gap-3">
                   <div className="w-2.5 h-2.5 bg-green-400 rounded-full animate-pulse"></div>
@@ -250,19 +265,21 @@ export default async function VideoDetailPage({
                   codec
                 </p>
               </div>
-
-              {/* Share Button */}
               <div className="mt-6">
                 <ShareButton />
               </div>
             </div>
           </div>
         </div>
+
+        {/* Menampilkan Video Terkait */}
+        <RelatedVideos title="Related Videos" videos={relatedVideos} />
       </div>
     </main>
   );
 }
 
+// Komponen helper
 function StatBadge({
   icon,
   label,
