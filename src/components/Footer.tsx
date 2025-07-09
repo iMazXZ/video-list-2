@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { FiPlay } from "react-icons/fi";
+import { FiPlay, FiHeart } from "react-icons/fi";
 
 export default function Footer() {
   return (
@@ -16,23 +15,13 @@ export default function Footer() {
             </sup>
           </span>
         </div>
-        <p className="text-sm text-center">
-          &copy; {new Date().getFullYear()} VideoHub. Made with ❤️ by Maul.
+        <p className="text-sm text-center flex items-center gap-1">
+          &copy; {new Date().getFullYear()} VideoHub. Made with{" "}
+          <span className="text-red-500">
+            <FiHeart className="inline w-5 h-5" />
+          </span>{" "}
+          by NUNA
         </p>
-        {/* <div className="flex items-center gap-4">
-          <Link
-            href="/about"
-            className="text-sm hover:text-white transition-colors"
-          >
-            About
-          </Link>
-          <Link
-            href="/privacy"
-            className="text-sm hover:text-white transition-colors"
-          >
-            Privacy Policy
-          </Link>
-        </div> */}
       </div>
     </footer>
   );
